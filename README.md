@@ -25,6 +25,10 @@ npm run dev
 
 Needs an `XAI_API_KEY` in the environment for edits.
 
+## Render
+
+This repo ships a `render.yaml`. Connect it as a Blueprint from [github.com/wallatozed-cloud/plugnplay-studio](https://github.com/wallatozed-cloud/plugnplay-studio), set `XAI_API_KEY`, and deploy.
+
 ## Stack
 
 TanStack Start, React, Tailwind, xAI (Grok + Imagine).

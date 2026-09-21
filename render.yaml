@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: plugnplay-studio
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build:render
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NITRO_PRESET
+        value: render-com
+      - key: XAI_API_KEY
+        sync: false
