@@ -1,0 +1,176 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Instrument Serif", ui-serif, Georgia, "Times New Roman", serif;
+
+  --color-bg: #0b0b0a;
+  --color-surface: #141413;
+  --color-raised: #1c1c1a;
+  --color-fg: #f3f1ec;
+  --color-muted: #9a968e;
+  --color-subtle: #6e6a62;
+  --color-accent: #ece8e0;
+  --color-accent-fg: #0b0b0a;
+  --color-border: #2a2926;
+  --color-danger: #c45c4a;
+  --color-ring: #ece8e0;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+
+  --shadow-border: 0 0 0 1px rgb(255 255 255 / 0.08);
+  --shadow-border-hover: 0 0 0 1px rgb(255 255 255 / 0.14);
+  --shadow-lift: 0 24px 60px -28px rgb(0 0 0 / 0.7);
+
+  --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background: var(--color-bg);
+    color: var(--color-fg);
+  }
+
+  body {
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    min-height: 100dvh;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  ::selection {
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@keyframes atelier-enter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-y, 10px));
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes atelier-shimmer {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(220%);
+  }
+}
+
+.atelier-enter {
+  animation: atelier-enter 400ms var(--ease-smooth) both;
+}
+
+.atelier-enter-delay-1 {
+  --motion-y: 8px;
+  animation-delay: 40ms;
+}
+.atelier-enter-delay-2 {
+  --motion-y: 8px;
+  animation-delay: 90ms;
+}
+.atelier-enter-delay-3 {
+  --motion-y: 8px;
+  animation-delay: 140ms;
+}
+
+.atelier-shimmer {
+  animation: atelier-shimmer 1.4s linear infinite;
+}
+
+.pressable:active:not(:disabled) {
+  scale: 0.96;
+}
+
+.atelier-root {
+  min-height: 100dvh;
+}
+
+@media (min-width: 640px) {
+  .atelier-root {
+    height: var(--app-height, 100dvh);
+    overflow: hidden;
+  }
+}
+
+.studio-composer {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  padding-bottom: max(12px, env(safe-area-inset-bottom), var(--keyboard-inset, 0px));
+}
+
+.atelier-root.is-typing .frame-img,
+.atelier-root.is-typing .frame-max img {
+  max-height: min(28vh, 240px);
+}
+
+.atelier-root.is-typing .paper-body {
+  max-height: min(28vh, 240px);
+}
+
+.shell-pad {
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+
+.frame-img {
+  max-height: min(64vh, 720px);
+}
+
+.frame-max {
+  max-width: 64rem;
+}
+
+.frame-max .frame-img,
+.frame-max img {
+  max-height: min(64vh, 720px);
+}
+
+.paper-body {
+  max-height: min(56vh, 640px);
+}
+
+.history-doc-preview {
+  font-size: 0.5rem;
+  line-height: 1.2;
+}
