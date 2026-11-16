@@ -12,6 +12,8 @@ import { toast, Toaster } from "sonner";
 import { CompareSlider } from "@/components/compare-slider";
 import { DocumentStage } from "@/components/document-stage";
 import { StudioMark } from "@/components/mark";
+import { TrainingApprovalActions } from "@/components/training-approval";
+import { TrainingSettingsButton } from "@/components/training-settings";
 import { Button } from "@/components/ui/button";
 import {
   DocumentPrepareError,
@@ -37,6 +39,7 @@ import {
   isAcceptedImage,
   prepareImage,
 } from "@/lib/image";
+import { useTraining } from "@/lib/training/use-training";
 import { cn } from "@/lib/utils";
 
 type ImageAsset = { kind: "image"; filename: string; dataUrl: string };
@@ -65,18 +68,21 @@ const IMAGE_SUGGESTIONS: { label: string; prompt: string }[] = [
   },
   {
     label: "Clear background",
-    prompt: "Replace the background with a quiet plaster studio wall and soft directional light. Keep the subject sharp.",
+    prompt:
+      "Replace the background with a quiet plaster studio wall and soft directional light. Keep the subject sharp.",
   },
   {
     label: "Sharper",
-    prompt: "Make this photograph sharper and more detailed. Keep the subject, face, and composition identical.",
+    prompt:
+      "Make this photograph sharper and more detailed. Keep the subject, face, and composition identical.",
   },
 ];
 
 const DOC_SUGGESTIONS: { label: string; prompt: string }[] = [
   {
     label: "Replace words",
-    prompt: "Replace only the words, names, dates, or amounts I name. Keep every other sentence exactly.",
+    prompt:
+      "Replace only the words, names, dates, or amounts I name. Keep every other sentence exactly.",
   },
   {
     label: "Tighten",
@@ -141,7 +147,10 @@ export function Studio() {
   const [error, setError] = useState<string | null>(null);
   const [aiAvailable, setAiAvailable] = useState(true);
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [trainingBusy, setTrainingBusy] = useState(false);
   const [typing, setTyping] = useState(false);
+  const training = useTraining();
   const dragDepth = useRef(0);
   const typingRef = useRef(false);
   const blurTimer = useRef<number>(0);
@@ -300,6 +309,7 @@ export function Studio() {
     setPrompt("");
     setError(null);
     setBusy(false);
+    setActiveId(null);
     if (inputRef.current) inputRef.current.value = "";
   }
 
@@ -328,7 +338,9 @@ export function Studio() {
       const doc = await fetchSampleDocument(SAMPLE_LETTER, "brief.txt");
       setSource({ kind: "document", filename: doc.filename, text: doc.text });
       setResult(null);
-      setPrompt("Tighten this into a shorter, warmer note. Keep the dates and the forty percent deposit.");
+      setPrompt(
+        "Tighten this into a shorter, warmer note. Keep the dates and the forty percent deposit.",
+      );
       focusPrompt();
     } catch (err) {
       const message =
@@ -377,10 +389,12 @@ export function Studio() {
           filename: source.filename,
           dataUrl: response.imageDataUrl,
         };
+        const id = newId();
         setResult(next);
+        setActiveId(id);
         setHistory(
           await saveHistoryItem({
-            id: newId(),
+            id,
             kind: "image",
             prompt: trimmed,
             source: source.dataUrl,
@@ -408,10 +422,12 @@ export function Studio() {
           filename: source.filename,
           text: response.text,
         };
+        const id = newId();
         setResult(next);
+        setActiveId(id);
         setHistory(
           await saveHistoryItem({
-            id: newId(),
+            id,
             kind: "document",
             prompt: trimmed,
             source: source.text,
@@ -444,12 +460,45 @@ export function Studio() {
     setSource(pair.source);
     setResult(pair.result);
     setPrompt(item.prompt);
+    setActiveId(item.id);
     setError(null);
   }
 
   async function wipeHistory() {
+    const ids = history.map((item) => item.id);
     await clearHistory();
     setHistory([]);
+    setActiveId(null);
+    await training.forget(ids);
+  }
+
+  async function approveItem(item: HistoryItem) {
+    if (itemKind(item) !== "image" || trainingBusy) return;
+    setTrainingBusy(true);
+    try {
+      const response = await training.approve({
+        id: item.id,
+        prompt: item.prompt,
+        createdAt: item.createdAt,
+        resultDataUrl: item.result,
+        sourceDataUrl: item.source,
+      });
+      if (!response.ok) toast.error(response.error);
+      else toast.success("Approved for training");
+    } finally {
+      setTrainingBusy(false);
+    }
+  }
+
+  async function unapproveItem(id: string) {
+    if (trainingBusy) return;
+    setTrainingBusy(true);
+    try {
+      await training.unapprove(id);
+      toast("Removed from the training queue");
+    } finally {
+      setTrainingBusy(false);
+    }
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -542,14 +591,18 @@ export function Studio() {
   const canSubmit =
     Boolean(source) && prompt.trim().length >= 3 && !busy && !preparing && aiAvailable;
   const suggestions = source?.kind === "document" ? DOC_SUGGESTIONS : IMAGE_SUGGESTIONS;
+  const activeItem =
+    activeId == null ? null : (history.find((item) => item.id === activeId) ?? null);
+  const trainable =
+    result?.kind === "image" &&
+    activeItem &&
+    itemKind(activeItem) === "image" &&
+    activeItem.result === result.dataUrl
+      ? activeItem
+      : null;
 
   return (
-    <div
-      className={cn(
-        "atelier-root relative flex flex-col bg-bg text-fg",
-        typing && "is-typing",
-      )}
-    >
+    <div className={cn("atelier-root relative flex flex-col bg-bg text-fg", typing && "is-typing")}>
       <Toaster
         theme="dark"
         position="top-center"
@@ -581,6 +634,7 @@ export function Studio() {
           </div>
         </div>
         <div className="flex items-center gap-1">
+          <TrainingSettingsButton training={training} />
           {source ? (
             <Button variant="ghost" size="sm" onClick={resetAll} type="button">
               <RotateCcw className="size-3.5" />
@@ -598,14 +652,29 @@ export function Studio() {
 
       <main className="flex min-h-0 flex-1 flex-col px-4 md:px-6">
         {!source ? (
-          <EmptyState
-            fileId={fileId}
-            preparing={preparing}
-            onBrowse={() => inputRef.current?.click()}
-            onSamplePhoto={() => void onSamplePhoto()}
-            onSampleLetter={() => void onSampleLetter()}
-            onPaste={() => void pasteFromClipboard()}
-          />
+          <>
+            <EmptyState
+              fileId={fileId}
+              preparing={preparing}
+              onBrowse={() => inputRef.current?.click()}
+              onSamplePhoto={() => void onSamplePhoto()}
+              onSampleLetter={() => void onSampleLetter()}
+              onPaste={() => void pasteFromClipboard()}
+            />
+            {history.length > 0 ? (
+              <div className="pb-4">
+                <HistoryRail
+                  items={history}
+                  onRestore={restoreItem}
+                  onClear={() => void wipeHistory()}
+                  trainingView={training.viewFor}
+                  trainingBusy={trainingBusy}
+                  onApprove={(item) => void approveItem(item)}
+                  onUnapprove={(id) => void unapproveItem(id)}
+                />
+              </div>
+            ) : null}
+          </>
         ) : (
           <div className="flex min-h-0 flex-1 flex-col gap-4 pb-3">
             <div className="relative flex min-h-0 flex-1 items-stretch justify-center">
@@ -637,7 +706,9 @@ export function Studio() {
                 <div className="absolute inset-0 flex items-center justify-center bg-bg/55">
                   <div className="w-full max-w-xs px-6 text-center">
                     <p className="font-display text-2xl italic">
-                      {source.kind === "document" ? "Reasoning through the page" : "Reasoning through the photograph"}
+                      {source.kind === "document"
+                        ? "Reasoning through the page"
+                        : "Reasoning through the photograph"}
                     </p>
                     <p className="mt-1 text-sm text-muted">Then making the change.</p>
                     <div className="relative mt-4 h-px overflow-hidden bg-border">
@@ -649,7 +720,15 @@ export function Studio() {
             </div>
 
             {history.length > 0 && !typing ? (
-              <HistoryRail items={history} onRestore={restoreItem} onClear={() => void wipeHistory()} />
+              <HistoryRail
+                items={history}
+                onRestore={restoreItem}
+                onClear={() => void wipeHistory()}
+                trainingView={training.viewFor}
+                trainingBusy={trainingBusy}
+                onApprove={(item) => void approveItem(item)}
+                onUnapprove={(id) => void unapproveItem(id)}
+              />
             ) : null}
           </div>
         )}
@@ -729,16 +808,19 @@ export function Studio() {
                   ) : busy ? (
                     "Working…"
                   ) : result ? (
-                    source.kind === "document"
-                      ? "Compare both pages. Continue from the edit, or download the text."
-                      : "Slide to compare. Continue from the edit, or download it."
+                    source.kind === "document" ? (
+                      "Compare both pages. Continue from the edit, or download the text."
+                    ) : (
+                      "Slide to compare. Continue from the edit, or download it."
+                    )
                   ) : (
                     <>
-                      Say what you want in your own words. The studio reasons through the file first.
+                      Say what you want in your own words. The studio reasons through the file
+                      first.
                     </>
                   )}
                 </p>
-                <div className="flex items-center gap-1">
+                <div className="flex flex-wrap items-center gap-1">
                   {result ? (
                     <>
                       <Button variant="ghost" size="sm" type="button" onClick={useResultAsSource}>
@@ -748,6 +830,14 @@ export function Studio() {
                         <Download className="size-3.5" />
                         Download
                       </Button>
+                      {trainable ? (
+                        <TrainingApprovalActions
+                          view={training.viewFor(trainable.id)}
+                          disabled={trainingBusy}
+                          onApprove={() => void approveItem(trainable)}
+                          onUnapprove={() => void unapproveItem(trainable.id)}
+                        />
+                      ) : null}
                     </>
                   ) : null}
                 </div>
@@ -799,7 +889,8 @@ function EmptyState({
         </h1>
         <p className="atelier-enter atelier-enter-delay-1 mx-auto mt-4 max-w-md text-sm leading-relaxed text-muted md:text-base">
           <span className="sm:hidden">
-            Restyle a photograph, or replace the words on a flyer or letter. Plug N Play Studio returns the edit.
+            Restyle a photograph, or replace the words on a flyer or letter. Plug N Play Studio
+            returns the edit.
           </span>
           <span className="hidden sm:inline">
             Restyle a photograph, or replace the words on a flyer or letter. One tool.
@@ -823,14 +914,14 @@ function EmptyState({
           </span>
           <span>
             <span className="block text-sm font-medium text-fg">
-              {preparing
-                ? "Preparing file…"
-                : (
-                  <>
-                    <span className="sm:hidden">Tap to choose a photo or document</span>
-                    <span className="hidden sm:inline">Drop an image or document</span>
-                  </>
-                )}
+              {preparing ? (
+                "Preparing file…"
+              ) : (
+                <>
+                  <span className="sm:hidden">Tap to choose a photo or document</span>
+                  <span className="hidden sm:inline">Drop an image or document</span>
+                </>
+              )}
             </span>
             <span className="mt-1 block text-xs text-subtle">
               Photos, PDF, Word — or paste from your clipboard
@@ -841,7 +932,13 @@ function EmptyState({
           <Button type="button" size="md" onClick={onBrowse} disabled={preparing}>
             Choose a file
           </Button>
-          <Button type="button" variant="secondary" size="md" onClick={onPaste} disabled={preparing}>
+          <Button
+            type="button"
+            variant="secondary"
+            size="md"
+            onClick={onPaste}
+            disabled={preparing}
+          >
             <ClipboardPaste className="size-4" />
             Paste
           </Button>
@@ -906,10 +1003,18 @@ function HistoryRail({
   items,
   onRestore,
   onClear,
+  trainingView,
+  trainingBusy,
+  onApprove,
+  onUnapprove,
 }: {
   items: HistoryItem[];
   onRestore: (item: HistoryItem) => void;
   onClear: () => void;
+  trainingView: (id: string) => "hidden" | "approve" | "pending" | "failed" | "sent";
+  trainingBusy: boolean;
+  onApprove: (item: HistoryItem) => void;
+  onUnapprove: (id: string) => void;
 }) {
   return (
     <div className="flex items-center gap-3">
@@ -917,28 +1022,48 @@ function HistoryRail({
       <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto py-1">
         {items.map((item) => {
           const kind = itemKind(item);
+          const view = kind === "image" ? trainingView(item.id) : "hidden";
           return (
-            <button
+            <div
               key={item.id}
-              type="button"
-              title={item.prompt}
-              onClick={() => onRestore(item)}
-              className="relative size-14 shrink-0 overflow-hidden rounded-sm bg-raised shadow-border transition-[box-shadow] duration-150 hover:shadow-border-hover"
+              className="flex h-14 shrink-0 items-stretch overflow-hidden rounded-sm bg-raised shadow-border"
             >
-              {kind === "image" ? (
-                <img src={item.result} alt="" className="size-full object-cover" />
-              ) : (
-                <span className="flex size-full flex-col bg-accent px-1.5 py-1 text-left text-accent-fg">
-                  <span className="history-doc-preview line-clamp-4 leading-tight whitespace-pre-wrap">
-                    {item.result}
+              <button
+                type="button"
+                title={item.prompt}
+                aria-label={`Open edit: ${item.prompt}`}
+                onClick={() => onRestore(item)}
+                className="relative size-14 shrink-0 overflow-hidden transition-[box-shadow] duration-150"
+              >
+                {kind === "image" ? (
+                  <img src={item.result} alt="" className="size-full object-cover" />
+                ) : (
+                  <span className="flex size-full flex-col bg-accent px-1.5 py-1 text-left text-accent-fg">
+                    <span className="history-doc-preview line-clamp-4 leading-tight whitespace-pre-wrap">
+                      {item.result}
+                    </span>
                   </span>
-                </span>
-              )}
-            </button>
+                )}
+              </button>
+              <TrainingApprovalActions
+                view={view}
+                compact
+                disabled={trainingBusy}
+                onApprove={() => onApprove(item)}
+                onUnapprove={() => onUnapprove(item.id)}
+              />
+            </div>
           );
         })}
       </div>
-      <Button variant="ghost" size="icon-sm" type="button" onClick={onClear} aria-label="Clear history">
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        type="button"
+        onClick={onClear}
+        aria-label="Clear history"
+        className="size-11"
+      >
         <Trash2 className="size-3.5" />
       </Button>
     </div>

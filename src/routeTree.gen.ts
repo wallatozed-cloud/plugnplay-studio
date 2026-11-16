@@ -10,33 +10,76 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as TrainingTermsRouteImport } from './routes/training-terms'
+import { Route as ApiTrainingContributeRouteImport } from './routes/api/training/contribute'
+import { Route as ApiTrainingStatusRouteImport } from './routes/api/training/status'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TrainingTermsRoute = TrainingTermsRouteImport.update({
+  id: '/training-terms',
+  path: '/training-terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTrainingContributeRoute = ApiTrainingContributeRouteImport.update({
+  id: '/api/training/contribute',
+  path: '/api/training/contribute',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTrainingStatusRoute = ApiTrainingStatusRouteImport.update({
+  id: '/api/training/status',
+  path: '/api/training/status',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/training-terms': typeof TrainingTermsRoute
+  '/api/training/contribute': typeof ApiTrainingContributeRoute
+  '/api/training/status': typeof ApiTrainingStatusRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/training-terms': typeof TrainingTermsRoute
+  '/api/training/contribute': typeof ApiTrainingContributeRoute
+  '/api/training/status': typeof ApiTrainingStatusRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/training-terms': typeof TrainingTermsRoute
+  '/api/training/contribute': typeof ApiTrainingContributeRoute
+  '/api/training/status': typeof ApiTrainingStatusRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/training-terms'
+    | '/api/training/contribute'
+    | '/api/training/status'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/training-terms'
+    | '/api/training/contribute'
+    | '/api/training/status'
+  id:
+    | '__root__'
+    | '/'
+    | '/training-terms'
+    | '/api/training/contribute'
+    | '/api/training/status'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  TrainingTermsRoute: typeof TrainingTermsRoute
+  ApiTrainingContributeRoute: typeof ApiTrainingContributeRoute
+  ApiTrainingStatusRoute: typeof ApiTrainingStatusRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +91,35 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/training-terms': {
+      id: '/training-terms'
+      path: '/training-terms'
+      fullPath: '/training-terms'
+      preLoaderRoute: typeof TrainingTermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/training/contribute': {
+      id: '/api/training/contribute'
+      path: '/api/training/contribute'
+      fullPath: '/api/training/contribute'
+      preLoaderRoute: typeof ApiTrainingContributeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/training/status': {
+      id: '/api/training/status'
+      path: '/api/training/status'
+      fullPath: '/api/training/status'
+      preLoaderRoute: typeof ApiTrainingStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  TrainingTermsRoute: TrainingTermsRoute,
+  ApiTrainingContributeRoute: ApiTrainingContributeRoute,
+  ApiTrainingStatusRoute: ApiTrainingStatusRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
