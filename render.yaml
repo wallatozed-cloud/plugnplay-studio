@@ -13,3 +13,8 @@ services:
         value: render-com
       - key: XAI_API_KEY
         sync: false
+      # Optional. Training contribution stays hidden until both are set.
+      - key: TRAINING_UPLOAD_URL
+        sync: false
+      - key: TRAINING_UPLOAD_TOKEN
+        sync: false
